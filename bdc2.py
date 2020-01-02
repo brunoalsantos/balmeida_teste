@@ -6,13 +6,13 @@ class DatabaseConnection:
     def __enter__(self):
         # Aqui Bruno sempre que vc declarar um objeto da sua classe usando With isso vai ser executado, garantindo que na
         # entrada vai ter uma conexão válida e um cursor pronto e válido.
-        with psycopg2.connect(host='xxxx', dbname= 'snowplow', port= '5439', user= 'bruno_almeida', password= 'xxx') as conn:
+        with psycopg2.connect(host='sp-br-com-pebmed-prod1-redshift-cluster.cxuzrehlkkvc.us-east-1.redshift.amazonaws.com', dbname= 'snowplow', port= '5439', user= 'bruno_almeida', password= 'Pebmed4567&') as conn:
             conn.autocommit = True
             self.connection = conn
             with self.connection.cursor() as curs:
                 self.cursor = curs
      
-    def __exit__(self):
+    def __exit__(self, exc_type, exc_val, exc_tb):
         self.cursor.close()
         self.connection.close()
 
@@ -38,4 +38,5 @@ if __name__ == '__main__':
     # verifica se seus execute e insert estão certinhos Bruno mas é basicamente isso para 
     # garantir em Python que nada fica aberto.
     with DatabaseConnection() as conn:
+        conn.__enter__()
         conn.execute_query()
