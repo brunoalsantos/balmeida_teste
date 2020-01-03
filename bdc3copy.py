@@ -45,20 +45,37 @@ class DatabaseConnection:
                     print(response)
                     data = response_final.text
                     parsed = json.loads(data)
+                    print(parsed)
                     #print(json.dumps(parsed, indent=4))
-                    collections_to_insert = []
-                    #list_order = ["TaxIdNumber", "TaxIdNumber", "BirthCountry", "TaxIdOrigin", "TaxIdStatus", "SocialSecurityNumber", "Name", "CommonName", "StandardizedName", "NameUniquenessScore", "FirstNameUniquenessScore", "FirstAndLastNameUniquenessScore", "MotherName", "FatherName", "BirthDate", "Age", "Gender", "ZodiacSign", "ChineseSign", "HasObitIndication", "CreationDate", "LastUpdateDate"]
 
-                    for record in parsed ['Result']:
-                        data_to_insert = []
-                        for k, v in record.items():
-                            data_to_insert.append(v)
-
-                        collections_to_insert.append(tuple(data_to_insert))
-                        print (data_to_insert)
-
-
-                    self.cursor_bdc.commit() 
+                    insert_command = ("INSERT INTO bdc_data.people_dados_basicos ( id_pebmed, documento, `documento.1`, pais_de_origem, orgao_emissor, status_do_documento, pis, nome, nome_comum, nome_padronizado, unicidade_do_nome, unicidade_do_primeiro_nome, unicidade_do_primeiro_e_ultimo_nome, nome_da_mae, nome_do_pai, data_de_nascimento, idade, genero, signo_do_zodiaco, signo_do_calendario_chines, indicacao_de_obito, data_da_primeira_captura, data_da_ultima_captura ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) " 
+                                    , id
+                                    , str(cpfs['BasicData']['TaxIdNumber'])
+                                    , str(cpfs['BasicData']['TaxIdNumber'])
+                                    , str(cpfs['BirthCountry'])
+                                    , str(cpfs['TaxIdOrigin'])  
+                                    , str(cpfs['TaxIdStatus'])
+                                    , str(cpfs['AlternativeIdNumbers']['SocialSecurityNumber'])
+                                    , str(cpfs['Name'])
+                                    , str(cpfs['Aliases']['CommonName'])
+                                    , str(cpfs['Aliases']['StandardizedName'])
+                                    , str(cpfs['NameUniquenessScore'])
+                                    , str(cpfs['FirstNameUniquenessScore'])
+                                    , str(cpfs['FirstAndLastNameUniquenessScore'])
+                                    , str(cpfs['MotherName'])
+                                    , str(cpfs['FatherName'])
+                                    , str(cpfs['BirthDate'])
+                                    , str(cpfs['Age'])
+                                    , str(cpfs['Gender'])
+                                    , str(cpfs['ZodiacSign'])
+                                    , str(cpfs['ChineseSign'])
+                                    , str(cpfs['HasObitIndication'])
+                                    , str(cpfs['CreationDate'])
+                                    , str(cpfs['LastUpdateDate']) 
+                                    )
+                    print(insert_command)
+                    self.cursor_bdc.execute(insert_command)
+                    self.cursor_bdc.commit()
                   
 
 
