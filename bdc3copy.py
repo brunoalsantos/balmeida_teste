@@ -102,12 +102,6 @@ class DatabaseConnection:
     def close_connections (self):
         self.connection_pebmedapps.close()
         self.connection_bdc.close()
-        
-#    def insert_record(self):
-#        new_record = ("10", "6")
-#        insert_command = ("INSERT INTO tablexxx (col1, col2) VALUES ('" + new_record[0] + "','" + new_record[1] + "') ")
-#        print(insert_command)
-#        self.cursor.execute(insert_command) 
 
 
 if __name__ == '__main__':
