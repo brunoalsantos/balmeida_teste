@@ -1,36 +1,42 @@
 import requests
 import json
 import pymysql
+import dateutil.parser
+from datetime import datetime
+
+
 
 class DatabaseConnection:
     
     def __init__(self):
-        self.connection_bdc = pymysql.connect(
-            host='db_pebmedapps.producao.pebmed.local'
-            , user='producao'
-            , passwd = 'QAdHmKWvDiPpxezhMP'
-            , db='bdc_data')
+        try:
+            self.connection_bdc = pymysql.connect(
+                host='xxxx'
+                , user='xxx'
+                , passwd = 'xxx'  
+                , db='xxx')
 
-        self.connection_pebmedapps = pymysql.connect(
-            host='db_pebmedapps.producao.pebmed.local'
-            , user='producao'
-            , passwd = 'QAdHmKWvDiPpxezhMP'
-            , db='pebmedapps')
-                
-        self.cursor_bdc = self.connection_bdc.cursor()
-        self.cursor_pebmedapps = self.connection_pebmedapps.cursor()
+            self.connection_pebmedapps = pymysql.connect(
+                host='xxxx'
+                , user='xxxx'
+                , passwd = 'xxx'
+                , db='xxxx')
+                    
+            self.cursor_bdc = self.connection_bdc.cursor()
+            self.cursor_pebmedapps = self.connection_pebmedapps.cursor()
+
+        except:
+            print("Error getting database connection")
+            exit()
 
 
     def execute_query(self):
-        #fetch_id_cpf = ("SELECT id, cpf FROM pebmedapps.tb_usuario WHERE DATE(data_cadastro) = CURRENT_DATE - 'INTERVAL 1 DAY' AND cpf IS NOT NULL  AND cpf <> '0000000000000' LIMIT 1")
-        #fetch_id_cpf = ("SELECT id, cpf FROM pebmedapps.tb_usuario WHERE cpf = '00067446132' LIMIT 1")
-        fetch_id_cpf = ( "SELECT id, cpf FROM pebmedapps.tb_usuario WHERE DATE(data_cadastro) = CURRENT_DATE - 'INTERVAL 1 DAY' AND cpf IS NOT NULL  AND cpf in ('00080760570','00220260290','00333687248','00676838278','00769737358','00802916007','00892097108','01016047266','01204120471','01271723000','01310824932','01324572299','01359836497','01373836148','01680465473','01703077350','01806126540','01947933388','01979166005','02092537202','02095844599','02122996110','02151043070','02184550035','02209451523','02316601545','02393154213','02468408110','02522478419','02783344319','02985485699','03039799410','03106269197','03232883400','03261584211','03359163176','03489164261','03522858506','03703139684','03885858207','03925541942','04017728375','04068565163','04070574557','04077949130','04216128190','04241441076','04379901173','04406726357','04582707505') " )
-        
+        fetch_id_cpf = ("SELECT id, cpf FROM pebmedapps.tb_usuario a LEFT OUTER JOIN bdc_data.people_dados_basicos b ON (a.id = b.id_pebmed) WHERE DATE(data_cadastro) >= '2020-01-01' AND cpf IS NOT NULL  AND cpf NOT IN  ('0000000000000','0') AND b.id_pebmed IS NULL ORDER BY 1 LIMIT 10")
         self.cursor_pebmedapps.execute(fetch_id_cpf)
         
         cpfs = self.cursor_pebmedapps.fetchall()
 
-        datasets = ['basic_data','related_people', 'business_relationships', 'financial_data', 'online_presence', 'passages', 'interests_and_behaviors', 'demographic_data', 'flags_and_features', 'university_student_data', 'addresses', 'emails', 'occupation_data', 'collections', 'class_organization', ] # 'ondemand_restituicao'
+        datasets = ['basic_data','related_people', 'business_relationships', 'financial_data', 'online_presence', 'passages', 'interests_and_behaviors', 'demographic_data', 'flags_and_features', 'university_student_data', 'addresses', 'emails', 'occupation_data', 'collections', 'class_organization' ] # 'ondemand_restituicao'
 
         api_token = 'd2b92070-dcb3-48e7-942a-bd5fa9a94452'
         api_url_base = 'https://bigboost.bigdatacorp.com.br/peoplev2?'
@@ -38,8 +44,12 @@ class DatabaseConnection:
         for id, cpf in cpfs:
             
                 for ds in datasets:
-                    print (cpf)
-                    print (ds)
+                    print("============================================")
+                    print("CPF: {0} Dataset: {1}".format(cpf, ds) )
+                    print("============================================")
+                    print()
+
+
                     payload = {'Datasets':ds, 'q=doc:':'{'+cpf+'}', 'AccessToken':api_token}
                     response = requests.get(api_url_base, params = payload).url.replace('%3D','=').replace('%3A=%7B','{').replace('%7D','}')
                     response_final = requests.get(response)
@@ -51,6 +61,7 @@ class DatabaseConnection:
                     # -----------------------------------------------
                     if ds == 'basic_data':
                         try:
+                            user_data2 = []
                             user_data2 = user_data['Result'][0]['BasicData']        
                             print(user_data2)
                 
@@ -79,27 +90,36 @@ class DatabaseConnection:
                                 , user_data2.get('ZodiacSign') # signo_do_zodiaco
                                 , user_data2.get('ChineseSign') # signo_do_calendario_chines
                                 , user_data2.get('HasObitIndication') # indicacao_de_obito
-                                , user_data2.get('CreationDate') # data_da_primeira_captura
-                                , user_data2.get('LastUpdateDate') ) # data_da_ultima_captura
+                                , datetime.strftime(dateutil.parser.parse(user_data2.get('CreationDate')),'%d/%m/%y') if user_data2.get('CreationDate') is not None else None
+                                , datetime.strftime(dateutil.parser.parse(user_data2.get('LastUpdateDate')),'%d/%m/%y') if user_data2.get('LastUpdateDate') is not None else None ) # data_da_ultima_captura
 
                             print(insert_command)
                             self.cursor_bdc.execute(insert_command, t)
                             self.connection_bdc.commit()
                             print()
                         except:
-                            print("Key [BasicData] not found in json")
-
+                            print("Error in [BasicData] json data")
+                            print()
+                            break
+                           
+                        
 
                     # -----------------------------------------------
                     # Dataset: related_people
                     # -----------------------------------------------
                     elif ds == 'related_people':
                         try:
-                            user_data2 = user_data['Result'][0]['RelatedPeople']['PersonalRelationships']   
+                            user_data2 = []
+                            user_data2 = user_data['Result'][0]['RelatedPeople']['PersonalRelationships']  
+                        except:
                             print(user_data2)
+                            print("Key [PersonalRelationships] not found in json") 
+                            print()
 
+
+                        try: 
                             for row in user_data2:                 
-                                insert_command = ("INSERT INTO bdc_data.people_relacionamentos_pessoais_detalhes (id_pebmed, Documento, `Documento da Pessoa Relacionada`, `Tipo do Documento da Pessoa Relacionada`, `Pais da Pessoa Relacionada`, `Nome da Pessoa Relacionada`, `Tipo do Relacionamento`, `Nivel do Relacionamento`, `Data de Inicio do Relacionamento`, `Data de Termino do Relacionamento`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s ) " )
+                                insert_command = ("INSERT INTO bdc_data.people_relacionamentos_pessoais_detalhes (id_pebmed, documento, documento_da_pessoa_relacionada, tipo_do_documento_da_pessoa_relacionada, pais_da_pessoa_relacionada, nome_da_pessoa_relacionada, tipo_do_relacionamento, `Nivel do Relacionamento`, data_de_inicio_do_relacionamento, data_de_termino_do_relacionamento) VALUES ( %s, %s, %s, %s, %s, %s, %s, %s, %s, %s )  " )
 
                                 #related_people parameters
                                 t = (
@@ -111,15 +131,15 @@ class DatabaseConnection:
                                     , row.get('RelatedEntityName')
                                     , row.get('RelationshipType')
                                     , row.get('RelationshipLevel')
-                                    , row.get('RelationshipStartDate') 
-                                    , row.get('RelationshipEndDate') )
+                                    , datetime.strftime(dateutil.parser.parse(row.get('RelationshipStartDate')),'%d/%m/%y') if row.get('RelationshipStartDate') is not None else None 
+                                    , datetime.strftime(dateutil.parser.parse(row.get('RelationshipEndDate')),'%d/%m/%y')  if row.get('RelationshipEndDate')   is not None else None  )
                                 
                                 print(insert_command)
                                 self.cursor_bdc.execute(insert_command, t)
                                 self.connection_bdc.commit()   
                                 print()
                         except:
-                            print("Key [RelatedPeople][PersonalRelationships]  not found in json")
+                                print("Error in [RelatedPeople] json data") 
 
  
                     # -----------------------------------------------
@@ -127,6 +147,7 @@ class DatabaseConnection:
                     # -----------------------------------------------
                     elif ds == 'business_relationships':
                         try:
+                            user_data2 = []
                             user_data2 = user_data['Result'][0]['BusinessRelationships']['BusinessRelationships'] 
                             print(user_data2)
                             max_index = ("SELECT MAX(indice) FROM bdc_data.people_relacionamentos_empresariais_detalhes") 
@@ -151,15 +172,17 @@ class DatabaseConnection:
                                     , row.get('RelatedEntityName')
                                     , row.get('RelationshipType')
                                     , row.get('RelationshipLevel')
-                                    , row.get('RelationshipStartDate')
-                                    , row.get('RelationshipEndDate') )
+                                    , datetime.strftime(dateutil.parser.parse(row.get('RelationshipStartDate')),'%d/%m/%y') if row.get('RelationshipStartDate') is not None else None
+                                    , datetime.strftime(dateutil.parser.parse(row.get('RelationshipEndDate')),'%d/%m/%y')   if row.get('RelationshipEndDate')   is not None else None )
 
                                 print(insert_command)
                                 self.cursor_bdc.execute(insert_command, t)
                                 self.connection_bdc.commit()
                                 print()
                         except:
-                            print("Key [BusinessRelationships][BusinessRelationships] not found in json")
+                            print("Error in [BusinessRelationships] json data")
+                            print()
+
 
 
 
@@ -168,7 +191,9 @@ class DatabaseConnection:
                     # -----------------------------------------------
                     elif ds == 'emails':
                         try:
+                            user_data2 = []
                             user_data2 = user_data['Result'][0]['Emails'] 
+                            print(user_data2)
 
                             for row in user_data2:
                                 insert_command = ("INSERT INTO bdc_data.people_emails (id_pebmed, documento, email, dominio, usuario, tipo, passagens, `Passagens Suspeitas`, passagens_de_captura, passagens_de_validacao, passagens_de_consultao, media_de_passagens_por_mes, numero_de_entidades_associadas, prioridade, flag_principal, flag_recente, flag_ativo, status_da_validacao, data_da_ultima_validacao, data_da_primeira_passagem, data_da_ultima_passagem) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s ) " )
@@ -192,18 +217,18 @@ class DatabaseConnection:
                                     , row.get('IsMain')
                                     , row.get('IsRecent')
                                     , row.get('IsActive')
-                                    , row.get('ValidationStatus')                                 
-                                    , row.get('LastValidationDate')
-                                    , row.get('FirstPassageDate')
-                                    , row.get('LastPassageDate') )
+                                    , row.get('ValidationStatus')
+                                    , datetime.strftime(dateutil.parser.parse(row.get('LastValidationDate')),'%d/%m/%y') if row.get('LastValidationDate') is not None else None
+                                    , datetime.strftime(dateutil.parser.parse(row.get('FirstPassageDate')),'%d/%m/%y')   if row.get('FirstPassageDate')   is not None else None
+                                    , datetime.strftime(dateutil.parser.parse(row.get('LastPassageDate')),'%d/%m/%y')    if row.get('LastPassageDate')    is not None else None )
 
                                 print(insert_command)
                                 self.cursor_bdc.execute(insert_command, t)
                                 self.connection_bdc.commit()
                                 print()
                         except:
-                            print("Key [Emails] not found in json")
-
+                            print("Error in [Emails] json data")
+                            print()
 
 
                     # -----------------------------------------------
@@ -211,6 +236,7 @@ class DatabaseConnection:
                     # -----------------------------------------------
                     elif ds == 'financial_data':
                         try:
+                            user_data2 = []
                             user_data2 = user_data['Result'][0]['FinantialData']   
                             print(user_data2)
                         
@@ -231,7 +257,9 @@ class DatabaseConnection:
                             self.connection_bdc.commit()   
                             print()
                         except:
-                            print("Key [FinantialData] not found in json")
+                            print("Error in [FinantialData] json data")
+                            print()
+
 
  
                     # -----------------------------------------------
@@ -239,6 +267,7 @@ class DatabaseConnection:
                     # -----------------------------------------------
                     elif ds == 'online_presence':
                         try:
+                            user_data2 = []
                             user_data2 = user_data['Result'][0]['OnlinePresence']   
                             print(user_data2)
                         
@@ -258,8 +287,8 @@ class DatabaseConnection:
                             self.connection_bdc.commit()   
                             print()
                         except:
-                            print("Key [OnlinePresence] not found in json")
-
+                            print("Error in [OnlinePresence] json data")
+                            print()
 
 
                     # -----------------------------------------------
@@ -267,6 +296,7 @@ class DatabaseConnection:
                     # -----------------------------------------------                
                     elif ds == 'passages':
                         try:
+                            user_data2 = []
                             user_data2 = user_data['Result'][0]['Passages']   
                             print(user_data2)
                         
@@ -282,8 +312,8 @@ class DatabaseConnection:
                                 , user_data2.get('CrawlingPassages')
                                 , user_data2.get('ValidationPassages')
                                 , user_data2.get('MonthAveragePassages')
-                                , user_data2.get('FirstPassageDate')
-                                , user_data2.get('LastPassageDate')
+                                , datetime.strftime(dateutil.parser.parse(user_data2.get('FirstPassageDate')),'%d/%m/%y') if user_data2.get('FirstPassageDate') is not None else None
+                                , datetime.strftime(dateutil.parser.parse(user_data2.get('LastPassageDate')),'%d/%m/%y')  if user_data2.get('LastPassageDate')  is not None else None
                                 , user_data2.get('NumberOfAddresses')
                                 , user_data2.get('NumberOfPhones')
                                 , user_data2.get('NumberOfEmails') )
@@ -293,7 +323,7 @@ class DatabaseConnection:
                             self.connection_bdc.commit()   
                             print() 
                         except:
-                            print("Key [Passages] not found in json")
+                            print("Error in [Passages] json data")
 
 
                     # -----------------------------------------------
@@ -301,7 +331,9 @@ class DatabaseConnection:
                     # -----------------------------------------------
                     elif ds == 'interests_and_behaviors':
                         try:
-                            user_data2 = user_data['Result'][0]['InterestsAndBehaviors']                       
+                            user_data2 = []
+                            user_data2 = user_data['Result'][0]['InterestsAndBehaviors']  
+                            print(user_data2)                     
                             insert_command = ("INSERT INTO bdc_data.people_interesses_comportamentais ( id_pebmed, documento, revendedor_porta_porta, nivel_de_utlizacao_cartao_de_credito, programas_de_milhagem, investidor_online, carros_e_motos, bebes_e_criancas, saude_e_beleza, comida_e_bebida, musculacao_e_suplementos, livros, computacao, entregas, eletro_eletronicos, entretenimento, moda_e_acessorios, videogames, casa_e_decoracao, itens_domesticos, telefonia_e_celulares, insturmentos_musicais, servicos, esporte_e_lazer, streaming, brinquedos, viagem_e_turismo ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) " )
                             
                             # interests_and_behaviors parameters
@@ -339,8 +371,8 @@ class DatabaseConnection:
                             self.connection_bdc.commit()
                             print()
                         except:
-                            print("Key [InterestsAndBehaviors] not found in json")
-
+                            print("Error in [InterestsAndBehaviors] json data")
+                            print()
 
 
                     # -----------------------------------------------
@@ -348,6 +380,7 @@ class DatabaseConnection:
                     # -----------------------------------------------
                     elif ds == 'demographic_data':
                         try:
+                            user_data2 = []
                             user_data2 = user_data['Result'][0]['DemographicData']
                             print(user_data2)
 
@@ -370,7 +403,8 @@ class DatabaseConnection:
                                 self.connection_bdc.commit()
                                 print()
                         except:
-                            print("Key [DemographicData] not found in json")
+                            print("Error in [DemographicData] json data")
+                            print()
 
 
                     # -----------------------------------------------
@@ -378,6 +412,7 @@ class DatabaseConnection:
                     # -----------------------------------------------
                     elif ds == 'flags_and_features':
                         try:
+                            user_data2 = []
                             user_data2 = user_data['Result'][0]['FlagsAndFeatures']
                             print(user_data2)
                             max_index = ("SELECT MAX(indice) FROM bdc_data.people_indicadore_caracteristicas") 
@@ -406,7 +441,8 @@ class DatabaseConnection:
                                 self.connection_bdc.commit()
                                 print()
                         except:
-                            print("Key [FlagsAndFeatures] not found in json")
+                            print("Error in [FlagsAndFeatures] json data")
+                            print()
 
 
                     # -----------------------------------------------
@@ -414,6 +450,7 @@ class DatabaseConnection:
                     # -----------------------------------------------
                     elif ds == 'university_student_data':
                         try:
+                            user_data2 = []
                             user_data2 = user_data['Result'][0]['Scholarship']['ScholarshipHistory']
                             print(user_data2)
                             
@@ -437,7 +474,8 @@ class DatabaseConnection:
                                 self.connection_bdc.commit()
                                 print()
                         except:
-                            print("Key [Scholarship][ScholarshipHistory] not found in json")
+                            print("Error in [ScholarshipHistory] json data")
+                            print()
 
 
                     # -----------------------------------------------
@@ -445,6 +483,7 @@ class DatabaseConnection:
                     # -----------------------------------------------
                     elif ds == 'addresses':
                         try:
+                            user_data2 = []
                             user_data2 = user_data['Result'][0]['Addresses']
                             print(user_data2)
                             
@@ -489,8 +528,8 @@ class DatabaseConnection:
                                     , row.get('IsRatified') # flag_ratificado
                                     , row.get('Latitude') # latitude
                                     , row.get('Longitude') # longitude
-                                    , row.get('FirstPassageDate') # data_da_primeira_passagem
-                                    , row.get('LastPassageDate')  # data_da_ultima_passagem 
+                                    , datetime.strftime(dateutil.parser.parse(row.get('FirstPassageDate')),'%d/%m/%y') if row.get('FirstPassageDate') is not None else None
+                                    , datetime.strftime(dateutil.parser.parse(row.get('LastPassageDate')),'%d/%m/%y')  if row.get('LastPassageDate')  is not None else None
                                     )
 
                                 print(insert_command)
@@ -498,8 +537,8 @@ class DatabaseConnection:
                                 self.connection_bdc.commit()
                                 print()
                         except:
-                            print("Key [Addresses] not found in json")
-
+                            print("Error in [Addresses] json data")
+                            print()
 
 
                     # -----------------------------------------------
@@ -507,6 +546,7 @@ class DatabaseConnection:
                     # -----------------------------------------------
                     elif ds == 'occupation_data':
                         try:
+                            user_data2 = []
                             user_data2 = user_data['Result'][0]['ProfessionData']['Professions']   
                             print(user_data2)
                         
@@ -525,15 +565,17 @@ class DatabaseConnection:
                                     , row.get('Level')
                                     , row.get('Status')
                                     , row.get('IncomeRange')
-                                    , row.get('StartDate')
-                                    , row.get('EndDate') )
+                                    , datetime.strftime(dateutil.parser.parse(row.get('StartDate')),'%d/%m/%y') if row.get('StartDate') is not None else None 
+                                    , datetime.strftime(dateutil.parser.parse(row.get('EndDate')),'%d/%m/%y') if row.get('EndDate')   is not None else None 
+                                    )
 
                                 print(insert_command)
                                 self.cursor_bdc.execute(insert_command, t)
                                 self.connection_bdc.commit()   
                                 print() 
                         except:
-                            print("Key [ProfessionData][Professions] not found in json")
+                            print("Error in ProfessionData json data")
+                            print()
 
 
                     # -----------------------------------------------
@@ -541,6 +583,7 @@ class DatabaseConnection:
                     # -----------------------------------------------
                     elif ds == 'collections':
                         try:
+                            user_data2 = []
                             user_data2 = user_data['Result'][0]['Collections']   
                             print(user_data2)
                         
@@ -552,16 +595,17 @@ class DatabaseConnection:
                                 , cpf
                                 , user_data2.get('CollectionOccurrences')
                                 , user_data2.get('CollectionOrigins')
-                                , user_data2.get('FirstCollectionDate')
-                                , user_data2.get('LastCollectionDate') )
+                                , datetime.strftime(dateutil.parser.parse(user_data2.get('FirstCollectionDate')),'%d/%m/%y') if user_data2.get('FirstCollectionDate') is not None else None 
+                                , datetime.strftime(dateutil.parser.parse(user_data2.get('LastCollectionDate')),'%d/%m/%y')  if user_data2.get('LastCollectionDate')  is not None else None 
+                                )
                             
                             print(insert_command)
                             self.cursor_bdc.execute(insert_command, t)
                             self.connection_bdc.commit()   
                             print()
                         except:
-                            print("Key [Collections] not found in json")
-
+                            print("Error in [Collections] json data")
+                            print()
 
 
                     # -----------------------------------------------
@@ -569,9 +613,11 @@ class DatabaseConnection:
                     # -----------------------------------------------
                     elif ds == 'class_organization':
                         try:
+                            user_data2 = []
                             user_data2 = user_data['Result'][0]['Memberships']['Memberships']  
+                            print(user_data2)
                             for row in user_data2: 
-                                insert_command = ("INSERT INTO bdc_data.people_conselhos_associacoes ( id_pebmed, documento, nome_da_organizacao, pais_da_organizacao, tipo_da_organizacao, capitulo, numero_de_registro, categoria, status, detalhes, data_de_inicio_da_associacao, data_de_termino_da_associacao ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) " )
+                                insert_command = ("INSERT INTO bdc_data.people_conselhos_associacoes ( id_pebmed, documento, nome_da_organizacao, pais_da_organizacao, tipo_da_organizacao, capitulo, numero_de_registro, categoria, status, data_de_inicio_da_associacao, data_de_termino_da_associacao ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) " )
 
                                 # class_organization parameters
                                 t = (
@@ -584,22 +630,24 @@ class DatabaseConnection:
                                     , row.get('RegistrationId')
                                     , row.get('Category')
                                     , row.get('Status')
-                                    , row.get('MembershipStartDate')
-                                    , row.get('MembershipEndDate')
-                                    , row.get('CreationDate') )
+                                    , datetime.strftime(dateutil.parser.parse(row.get('MembershipStartDate')),'%d/%m/%y') if row.get('MembershipStartDate') is not None else None
+                                    , datetime.strftime(dateutil.parser.parse(row.get('MembershipEndDate')),'%d/%m/%y')   if row.get('MembershipEndDate')   is not None else None
+                                    )
 
                                 print(insert_command)
                                 self.cursor_bdc.execute(insert_command, t)
                                 self.connection_bdc.commit()   
                                 print() 
                         except:
-                            print("Key [Memberships][Memberships] not found in json")
+                            print("Error in [Memberships] json data")
+                            print()
+
 
                     # -----------------------------------------------
                     # End 
                     # -----------------------------------------------  
                     else:
-                        print ("Nenhuma das opcoes")
+                        print ("Dataset not exists")
                         break                  
 
 
@@ -611,6 +659,20 @@ class DatabaseConnection:
 
 
 if __name__ == '__main__':
+
+    initial_timestamp = datetime.now()
+    print("Start:", initial_timestamp)
+    print()
+
     db_connection = DatabaseConnection()
     db_connection.execute_query()
     db_connection.close_connections()
+    print()
+
+    print("Start:", initial_timestamp)
+
+    end_timestamp = datetime.now()
+    print("End:", end_timestamp)
+    
+    total_time = end_timestamp - initial_timestamp
+    print("Total time execution:", total_time)
